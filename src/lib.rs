@@ -114,12 +114,7 @@ impl MatrixBot {
         self.verbose = verbose;
     }
 
-    /// Blocking call that runs as long as the Bot is running.
-    /// Will call for each incoming text-message the given MessageHandler.
-    /// Bot will automatically join all rooms it is invited to.
-    /// Will return on shutdown only.
-    /// All messages prior to run() will be ignored.
-    pub fn run(mut self, user: &str, password: &str, homeserver_url: &str) {
+    pub fn login(&self, user: &str, password: &str, homeserver_url: &str) {
         self.backend
             .send(BKCommand::Login(
                 user.to_string(),
@@ -127,16 +122,38 @@ impl MatrixBot {
                 homeserver_url.to_string(),
             ))
             .unwrap();
+    }
 
-        let mut active_bot = ActiveBot {
+    pub fn active_bot(&self) -> ActiveBot {
+        ActiveBot {
             backend: self.backend.clone(),
             uid: self.uid.clone(),
             verbose: self.verbose,
-        };
+        }
+    }
 
+    pub fn init_handlers(&mut self, active_bot: &ActiveBot) {
         for handler in self.handlers.iter_mut() {
             handler.init_handler(&active_bot);
         }
+    }
+
+    pub fn recv_and_handle(&mut self, active_bot: &mut ActiveBot) -> bool {
+        let cmd = self.rx.recv().unwrap();
+        self.handle_recvs(cmd, active_bot)
+    }
+
+    /// Blocking call that runs as long as the Bot is running.
+    /// Will call for each incoming text-message the given MessageHandler.
+    /// Bot will automatically join all rooms it is invited to.
+    /// Will return on shutdown only.
+    /// All messages prior to run() will be ignored.
+    pub fn run(mut self, user: &str, password: &str, homeserver_url: &str) {
+        self.login(user, password, homeserver_url);
+
+        let mut active_bot = self.active_bot();
+
+        self.init_handlers(&active_bot);
 
         loop {
             let cmd = self.rx.recv().unwrap();
